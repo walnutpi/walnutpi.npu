@@ -50,3 +50,10 @@ modules.order
 Module.symvers
 Mkfile.old
 dkms.conf
+
+*.egg-info/
+__pycache__/
+*-data/
+*.pt
+*.onnx
+.*

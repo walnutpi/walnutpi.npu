@@ -1,0 +1,5 @@
+#!/bin/bash
+cd NPU
+make
+make install
+pip3 install -e ./
