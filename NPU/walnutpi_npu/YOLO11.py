@@ -2,7 +2,7 @@ import os
 import numpy as np
 import cv2
 from typing import List
-from walnutpi import NPU 
+from walnutpi_npu import NPU 
 import time
 import threading
 

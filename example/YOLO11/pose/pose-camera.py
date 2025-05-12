@@ -1,4 +1,4 @@
-from walnutpi import YOLO11
+from walnutpi_npu import YOLO11
 import cv2
 import os
 

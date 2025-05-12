@@ -1,4 +1,4 @@
-from walnutpi import YOLO11
+from walnutpi_npu import YOLO11
 import dataset_ImageNet
 import cv2
 

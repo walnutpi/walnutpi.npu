@@ -15,7 +15,7 @@ with open("version", "r") as file:
     version_str = file.read().strip()
 
 setup(
-    name="npu",
+    name="walnutpi_npu",
     version=version_str,
     author="sc-bin",
     author_email="3335447573@qq.com",
