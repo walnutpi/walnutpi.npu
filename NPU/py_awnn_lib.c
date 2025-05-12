@@ -5,29 +5,21 @@
 #include "awnn_lib.h"
 #include "awnn_internal.h"
 pthread_t thread_id = 0;
-int flag_thread_awnn_running = 0;
 
-pthread_mutex_t async_thread_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t async_thread_cond = PTHREAD_COND_INITIALIZER;
+int flag_thread_awnn_running = 0;
+// 0: 没有运行 1:主线程已经启动了子线程 2:子线程开始运行
 
 void *thread_run_awnn(Awnn_Context_t *context_ptr)
 {
-    pthread_mutex_lock(&async_thread_mutex);
-    if (flag_thread_awnn_running == 0)
+    if (flag_thread_awnn_running == 1)
     {
-        flag_thread_awnn_running = 1;
-        pthread_cond_signal(&async_thread_cond);
-        pthread_mutex_unlock(&async_thread_mutex);
+        flag_thread_awnn_running = 2;
 
         if (context_ptr != NULL)
             awnn_run(context_ptr);
         flag_thread_awnn_running = 0;
     }
-    else
-    {
-        pthread_cond_signal(&async_thread_cond);
-        pthread_mutex_unlock(&async_thread_mutex);
-    }
+
     return NULL;
 }
 
@@ -52,7 +44,7 @@ static PyObject *py_awnn_init(PyObject *self, PyObject *args)
     model = strtok(buffer, "\n");
     if (strcmp(model, "walnutpi-2b") == 0)
         awnn_init();
-    
+
     Py_RETURN_NONE;
 }
 static PyObject *py_awnn_uninit(PyObject *self, PyObject *args)
@@ -125,16 +117,19 @@ static PyObject *py_awnn_run_async(PyObject *self, PyObject *args)
     PyArg_ParseTuple(args, "l", &context_ptr);
     if (flag_thread_awnn_running == 0)
     {
+        flag_thread_awnn_running = 1;
         int result = pthread_create(&thread_id, NULL, thread_run_awnn, context_ptr);
         if (result != 0)
         {
             PyErr_SetString(PyExc_RuntimeError, "Failed to create thread");
             Py_RETURN_NONE;
         }
-        pthread_mutex_lock(&async_thread_mutex);
-        pthread_cond_wait(&async_thread_cond, &async_thread_mutex); // 等待线程启动
-        pthread_mutex_unlock(&async_thread_mutex);
+        while (flag_thread_awnn_running == 1) // 等子线程已经启动了才返回
+        {
+            usleep(100);
+        }
     }
+
     Py_RETURN_NONE;
 }
 static PyObject *py_is_awnn_async_running(PyObject *self, PyObject *args)
