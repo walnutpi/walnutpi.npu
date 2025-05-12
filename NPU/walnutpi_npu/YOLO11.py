@@ -2,7 +2,7 @@ import os
 import numpy as np
 import cv2
 from typing import List
-from walnutpi_npu import NPU 
+from walnutpi_npu import NPU
 import time
 import threading
 
@@ -130,9 +130,25 @@ class _YOLO_BASE:
         检测图片，阻塞直到检测完成，返回检测结果
         @path: 图片路径
         """
-        self.run_async(img, reliability_threshold, nms_threshold)
-        while not self.has_result:
-            time.sleep(0.001)
+        self.is_running = True
+        self.has_result = False
+
+        time_point = int(time.time() * 1000)
+
+        data = self.pre_process(img)
+        self.speed.ms_pre_process = int(time.time() * 1000) - time_point
+        time_point = int(time.time() * 1000)
+        self.npu.run(data)
+
+        self.speed.ms_inference = int(time.time() * 1000) - time_point
+        time_point = int(time.time() * 1000)
+
+        self.results = self.post_process(reliability_threshold)
+        self.speed.ms_post_process = int(time.time() * 1000) - time_point
+        time_point = int(time.time() * 1000)
+
+        self.has_result = True
+        self.is_running = False
         return self.results
 
     def run_async(self, img, reliability_threshold=0.5, nms_threshold=0.5):
