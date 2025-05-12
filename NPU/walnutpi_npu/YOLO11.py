@@ -106,7 +106,7 @@ class _YOLO_BASE:
     has_result = False
     is_running = False
     npu: NPU.awnn
-    model_img_size: int
+    model_shape: tuple  # 模型输入尺寸,例如 (1, 3, 640, 640)
     nms_threshold = 0.45  # nms阈值
     results = []
 
@@ -121,9 +121,11 @@ class _YOLO_BASE:
         """
         初始化
         @path: 模型路径
-        @model_img_size: 模型设定的图片输入尺寸
         """
         self.npu = NPU.awnn(path)
+        self.model_shape = self.npu.model.shape()
+        self.model_h = self.model_shape[2]
+        self.model_w = self.model_shape[3]
 
     def run(self, img, reliability_threshold=0.5, nms_threshold=0.5):
         """
@@ -202,7 +204,7 @@ class _YOLO_BASE:
         将图片从原始尺寸缩小到模型输入尺寸
         """
         ih, iw, _ = img.shape
-        w, h = self.model_img_size, self.model_img_size
+        h, w = self.model_shape[2:4]
         scale = min(w / iw, h / ih)
         nw = int(iw * scale)
         nh = int(ih * scale)
@@ -292,7 +294,6 @@ class _YOLO_BASE:
 
 class YOLO11_CLS(_YOLO_BASE):
     results = YOLO_RESULT_CLS()  # 识别到的分类结果
-    model_img_size = 224
 
     def get_result(self) -> YOLO_RESULT_CLS:
         return super().get_result()
@@ -316,7 +317,6 @@ class YOLO11_CLS(_YOLO_BASE):
 class YOLO11_DET(_YOLO_BASE):
     results: List[YOLO_RESULT_DET] = []
     _result_type = YOLO_RESULT_DET
-    model_img_size = 640
 
     def get_result(self) -> List[YOLO_RESULT_DET]:
         return super().get_result()
@@ -332,16 +332,15 @@ class YOLO11_DET(_YOLO_BASE):
         de_releability_threshold = desigmoid(reliability_threshold)
         mask = tensor_classes > de_releability_threshold
         indices = np.argwhere(mask)
-        box_per_line = int(self.model_img_size / stride)
+        box_per_line = int(self.model_w / stride)
         index_in_out = 0
         if stride == 8:
             index_in_out = 0
         if stride == 16:
-            index_in_out = int(self.model_img_size * self.model_img_size / 64)
+            index_in_out = int(self.model_w * self.model_h / 64)
         if stride == 32:
             index_in_out = int(
-                self.model_img_size * self.model_img_size / 64
-                + self.model_img_size * self.model_img_size / 256
+                self.model_w * self.model_h / 64 + self.model_w * self.model_h / 256
             )
         ret = []
         classes_reliability = sigmoid(tensor_classes[mask])
@@ -363,11 +362,9 @@ class YOLO11_DET(_YOLO_BASE):
     def scale_boxes(self, boxes) -> List[YOLO_RESULT_DET]:
         # 缩放坐标到与原始图像一致
         original_height, original_width, _ = self.img_raw.shape
-        scale = min(
-            self.model_img_size / original_width, self.model_img_size / original_height
-        )
-        pad_x = (self.model_img_size - original_width * scale) / 2
-        pad_y = (self.model_img_size - original_height * scale) / 2
+        scale = min(self.model_w / original_width, self.model_h / original_height)
+        pad_x = (self.model_w - original_width * scale) / 2
+        pad_y = (self.model_h - original_height * scale) / 2
 
         for box in boxes:
             box.x = int((box.x - pad_x) / scale)
@@ -384,9 +381,9 @@ class YOLO11_DET(_YOLO_BASE):
         tensor_16 = self.npu.output_buffer.get(2)
         tensor_32 = self.npu.output_buffer.get(3)
 
-        box_per_line_8 = int(self.model_img_size / 8)
-        box_per_line_16 = int(self.model_img_size / 16)
-        box_per_line_32 = int(self.model_img_size / 32)
+        box_per_line_8 = int(self.model_w / 8)
+        box_per_line_16 = int(self.model_w / 16)
+        box_per_line_32 = int(self.model_w / 32)
         box_count_8 = int(box_per_line_8**2)
         box_count_16 = int(box_per_line_16**2)
         box_count_32 = int(box_per_line_32**2)
@@ -436,7 +433,6 @@ class YOLO11_DET(_YOLO_BASE):
 class YOLO11_OBB(YOLO11_DET):
     results: List[YOLO_RESULT_OBB]
     _result_type = YOLO_RESULT_OBB
-    model_img_size = 1024
 
     def get_result(self) -> List[YOLO_RESULT_OBB]:
         return super().get_result()
@@ -458,7 +454,6 @@ class YOLO11_OBB(YOLO11_DET):
 class YOLO11_SEG(YOLO11_DET):
     results: List[YOLO_RESULT_SEG]
     _result_type = YOLO_RESULT_SEG
-    model_img_size = 640
 
     def get_result(self) -> List[YOLO_RESULT_SEG]:
         return super().get_result()
@@ -518,7 +513,6 @@ class YOLO11_SEG(YOLO11_DET):
 class YOLO11_POSE(YOLO11_DET):
     results: List[YOLO_RESULT_POSE]
     _result_type = YOLO_RESULT_POSE
-    model_img_size = 640
 
     def get_result(self) -> List[YOLO_RESULT_POSE]:
         return super().get_result()
@@ -541,11 +535,9 @@ class YOLO11_POSE(YOLO11_DET):
         tensor_kpt = np.transpose(tensor_kpt, (1, 0))
 
         original_height, original_width, _ = self.img_raw.shape
-        scale = min(
-            self.model_img_size / original_width, self.model_img_size / original_height
-        )
-        pad_x = (self.model_img_size - original_width * scale) / 2
-        pad_y = (self.model_img_size - original_height * scale) / 2
+        scale = min(self.model_w / original_width, self.model_h / original_height)
+        pad_x = (self.model_w - original_width * scale) / 2
+        pad_y = (self.model_h - original_height * scale) / 2
 
         for box in boxes:
             box_predkpt = tensor_predkpt[box.index_in_all_boxes]
