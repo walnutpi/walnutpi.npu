@@ -164,6 +164,27 @@ static PyObject *py_awnn_dump_io(PyObject *self, PyObject *args)
         awnn_dump_io(context_ptr, out_path);
     Py_RETURN_NONE;
 }
+static PyObject *get_input_shape(PyObject *self, PyObject *args)
+{
+    Awnn_Context_t *context_ptr;
+    PyArg_ParseTuple(args, "l", &context_ptr);
+    uint32_t input_shape_num = context_ptr->input_params[0].vip_param.num_of_dims - 1;
+    PyObject *shape_list = PyList_New(input_shape_num + 1);
+
+    for (int i = 0; i <= input_shape_num; i++)
+    {
+        PyObject *dim_value = PyLong_FromLong(context_ptr->input_params[0].vip_param.sizes[i]);
+        if (!dim_value)
+        {
+            Py_DECREF(shape_list);
+            PyErr_SetString(PyExc_RuntimeError, "Failed to create integer object");
+            return NULL;
+        }
+        PyList_SetItem(shape_list, input_shape_num - i, dim_value);
+    }
+
+    return shape_list;
+}
 static PyObject *get_output_buffer_count(PyObject *self, PyObject *args)
 {
     Awnn_Context_t *context_ptr;
@@ -182,6 +203,7 @@ PyMethodDef pinctrl_methods[] = {
     {"awnn_run_async", py_awnn_run_async, METH_VARARGS, "run network as async"},
     {"is_awnn_async_running", py_is_awnn_async_running, METH_VARARGS, "is async running"},
     {"awnn_dump_io", py_awnn_dump_io, METH_VARARGS, "dump the input and output tensors"},
+    {"get_input_shape", get_input_shape, METH_VARARGS, "get model input shape"},
     {"get_output_buffer_count", get_output_buffer_count, METH_VARARGS, "get output buffer count"},
     {"awnn_get_output_buffer", py_awnn_get_output_buffer, METH_VARARGS, "get output buffer by index"},
     {NULL, NULL, 0, NULL},
