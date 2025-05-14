@@ -308,9 +308,16 @@ class YOLO11_CLS(_YOLO_BASE):
         top_5_indices = np.argsort(tensor)[-5:][::-1]
         ret = YOLO_RESULT_CLS()
         ret.all = tensor
-        for i in range(5):
-            index = top_5_indices[i]
-            ret.top5[i] = _YOLO_RESULT_CLS_INDEX(index, tensor[index])
+        indices = 0
+        for cls_index in top_5_indices:
+            print(f"index: {cls_index}")
+            ret.top5[indices] = _YOLO_RESULT_CLS_INDEX(cls_index, tensor[cls_index])
+            indices += 1
+        if indices < 5:
+            for i in range(5 - indices):
+                ret.top5[indices + i] = _YOLO_RESULT_CLS_INDEX(
+                    top_5_indices[-1], tensor[top_5_indices[-1]]
+                )
         return ret
 
 
