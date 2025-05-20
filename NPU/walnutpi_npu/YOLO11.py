@@ -91,7 +91,7 @@ class YOLO_RESULT_CLS:
         _YOLO_RESULT_CLS_INDEX(),
     ]
     # all是一个数组，包含所有类别的置信度，all[35]代表类别35的置信度，以此类推
-    all = np.zeros(1000)
+    all = np.zeros(1)
 
 
 def desigmoid(x):
@@ -182,8 +182,6 @@ class _YOLO_BASE:
 
         while self.npu.is_async_running():
             time.sleep(0.001)
-            # print(f"{time.time()}", end="\r")
-        # print(f"                                    ", end="\r")
 
         self.speed.ms_inference = time.time() * 1000 - time_point
         time_point = time.time() * 1000
@@ -310,7 +308,6 @@ class YOLO11_CLS(_YOLO_BASE):
         ret.all = tensor
         indices = 0
         for cls_index in top_5_indices:
-            print(f"index: {cls_index}")
             ret.top5[indices] = _YOLO_RESULT_CLS_INDEX(cls_index, tensor[cls_index])
             indices += 1
         if indices < 5:
@@ -381,6 +378,20 @@ class YOLO11_DET(_YOLO_BASE):
 
         return boxes
 
+    def _box_per_line(self, stride: int = 0):
+        if stride in [8, 16, 32]:
+            return int(self.model_w / stride)
+        if stride == 0:
+            return int(
+                self._box_per_line(8) + self._box_per_line(16) + self._box_per_line(32)
+            )
+
+    def _box_count(self, stride: int = 0):
+        if stride in [8, 16, 32]:
+            return int((self.model_w / stride) ** 2)
+        if stride == 0:
+            return int(self._box_count(8) + self._box_count(16) + self._box_count(32))
+
     def post_process(self, reliability_threshold):
         # self.npu.save_tensor(".")
         tensor_out = self.npu.output_buffer.get(0)
@@ -388,33 +399,42 @@ class YOLO11_DET(_YOLO_BASE):
         tensor_16 = self.npu.output_buffer.get(2)
         tensor_32 = self.npu.output_buffer.get(3)
 
-        box_per_line_8 = int(self.model_w / 8)
-        box_per_line_16 = int(self.model_w / 16)
-        box_per_line_32 = int(self.model_w / 32)
-        box_count_8 = int(box_per_line_8**2)
-        box_count_16 = int(box_per_line_16**2)
-        box_count_32 = int(box_per_line_32**2)
-        box_count_out = box_count_8 + box_count_16 + box_count_32
+        box_count_out = self._box_count()
 
-        tensor_shape1_out = int(tensor_out.__len__() / box_count_out)
-        tensor_shape1_stride = int(tensor_8.__len__() / box_count_8)
+        data_count_out = int(tensor_out.__len__() / box_count_out)
+        data_count_stride = int(tensor_8.__len__() / self._box_count(8))
         tensor_out = np.reshape(
             tensor_out,
-            (1, tensor_shape1_out, box_count_out),
+            (1, data_count_out, box_count_out),
         )
         tensor_8 = np.reshape(
             tensor_8,
-            (1, tensor_shape1_stride, box_per_line_8, box_per_line_8),
+            (
+                1,
+                data_count_stride,
+                self._box_per_line(8),
+                self._box_per_line(8),
+            ),
         )
 
         tensor_16 = np.reshape(
             tensor_16,
-            (1, tensor_shape1_stride, box_per_line_16, box_per_line_16),
+            (
+                1,
+                data_count_stride,
+                self._box_per_line(16),
+                self._box_per_line(16),
+            ),
         )
 
         tensor_32 = np.reshape(
             tensor_32,
-            (1, tensor_shape1_stride, box_per_line_32, box_per_line_32),
+            (
+                1,
+                data_count_stride,
+                self._box_per_line(32),
+                self._box_per_line(32),
+            ),
         )
 
         tensor_8 = np.transpose(tensor_8, (0, 2, 3, 1))
@@ -473,11 +493,15 @@ class YOLO11_SEG(YOLO11_DET):
     def post_process(self, reliability_threshold):
         # self.npu.save_tensor(".")
         boxes = super().post_process(reliability_threshold)
+
         masks_in = self.npu.output_buffer.get(4)
-        masks_in = np.reshape(masks_in, (32, 8400))
+        masks_in = np.reshape(masks_in, (-1, self._box_count()))
         masks_in = np.transpose(masks_in, (1, 0))
+
         protos = self.npu.output_buffer.get(5)
-        protos = np.reshape(protos, (32, 160 * 160))
+        protos_w = int(self.model_w / 4)
+        protos_h = int(self.model_h / 4)
+        protos = np.reshape(protos, (-1, protos_w * protos_h))
 
         def crop_mask(masks, xyxy):
             h, w = masks.shape
@@ -491,7 +515,7 @@ class YOLO11_SEG(YOLO11_DET):
         for i in boxes:
             box_mask = np.dot(masks_in[i.index_in_all_boxes], protos)
             box_mask = sigmoid(box_mask)
-            box_mask = np.reshape(box_mask, (160, 160))
+            box_mask = np.reshape(box_mask, (protos_h, protos_w))
             xyxy = [
                 int((i.xywh[0] - i.xywh[2] / 2) / 4),
                 int((i.xywh[1] - i.xywh[3] / 2) / 4),
@@ -503,7 +527,7 @@ class YOLO11_SEG(YOLO11_DET):
             i._raw_mask = box_mask
             mask = box_mask > reliability_threshold
             indices = np.argwhere(mask)
-            img = np.zeros((160, 160, 1), dtype=np.uint8)
+            img = np.zeros((protos_h, protos_w, 1), dtype=np.uint8)
             img[indices[:, 0], indices[:, 1], :] = 255
             img = self.resize_model2img(img)
             # img = cv2.GaussianBlur(img, (3, 3), 0) # 对img模糊处理，降低边缘锯齿
@@ -534,11 +558,11 @@ class YOLO11_POSE(YOLO11_DET):
         boxes = super().post_process(reliability_threshold)
 
         tensor_predkpt = self.npu.output_buffer.get(4)
-        tensor_predkpt = np.reshape(tensor_predkpt, (-1, 8400))
+        tensor_predkpt = np.reshape(tensor_predkpt, (-1, self._box_count()))
         tensor_predkpt = np.transpose(tensor_predkpt, (1, 0))
 
         tensor_kpt = self.npu.output_buffer.get(5)
-        tensor_kpt = np.reshape(tensor_kpt, (-1, 8400))
+        tensor_kpt = np.reshape(tensor_kpt, (-1, self._box_count()))
         tensor_kpt = np.transpose(tensor_kpt, (1, 0))
 
         original_height, original_width, _ = self.img_raw.shape
