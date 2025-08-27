@@ -301,7 +301,6 @@ class YOLO11_CLS(_YOLO_BASE):
 
     def post_process(self, reliability_threshold):
         tensor = self.npu.output_buffer.get(0)
-        tensor = sigmoid(tensor)
 
         top_5_indices = np.argsort(tensor)[-5:][::-1]
         ret = YOLO_RESULT_CLS()
