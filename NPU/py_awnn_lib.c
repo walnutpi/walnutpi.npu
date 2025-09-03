@@ -1,11 +1,11 @@
 #include <Python.h>
+#include <errno.h> //错误码
 #include <stdint.h>
 #include <numpy/arrayobject.h>
 #include <pthread.h>
 #include "awnn_lib.h"
 #include "awnn_internal.h"
 pthread_t thread_id = 0;
-
 int flag_thread_awnn_running = 0;
 // 0: 没有运行 1:主线程已经启动了子线程 2:子线程开始运行
 
@@ -121,9 +121,32 @@ static PyObject *py_awnn_run_async(PyObject *self, PyObject *args)
         int result = pthread_create(&thread_id, NULL, thread_run_awnn, context_ptr);
         if (result != 0)
         {
-            PyErr_SetString(PyExc_RuntimeError, "Failed to create thread");
+            flag_thread_awnn_running = 0; // 重置标志位
+            char error_msg[256];
+            switch (result)
+            {
+            case EAGAIN:
+                snprintf(error_msg, sizeof(error_msg),
+                         "Failed to create thread: EAGAIN - Insufficient resources to create another thread");
+                break;
+            case EINVAL:
+                snprintf(error_msg, sizeof(error_msg),
+                         "Failed to create thread: EINVAL - Invalid settings in attr");
+                break;
+            case EPERM:
+                snprintf(error_msg, sizeof(error_msg),
+                         "Failed to create thread: EPERM - No permission to set the scheduling policy");
+                break;
+            default:
+                snprintf(error_msg, sizeof(error_msg),
+                         "Failed to create thread: Unknown error code %d", result);
+                break;
+            }
+            PyErr_SetString(PyExc_RuntimeError, error_msg);
             Py_RETURN_NONE;
         }
+
+        pthread_detach(thread_id);            // 添加分离属性，避免资源泄漏
         while (flag_thread_awnn_running == 1) // 等子线程已经启动了才返回
         {
             usleep(100);
@@ -188,7 +211,8 @@ static PyObject *get_input_shape(PyObject *self, PyObject *args)
 static PyObject *get_output_buffer_count(PyObject *self, PyObject *args)
 {
     Awnn_Context_t *context_ptr;
-    return Py_BuildValue("li", &context_ptr, context_ptr->output_count);
+    PyArg_ParseTuple(args, "l", &context_ptr);            // 修复参数解析
+    return Py_BuildValue("i", context_ptr->output_count); // 修复返回值构建
 }
 
 static const char moduledocstring[] = "awnn";
