@@ -5,6 +5,7 @@ from typing import List
 from walnutpi_npu import NPU
 import time
 import threading
+import queue
 
 
 class YOLO_RESULT_DET:
@@ -109,6 +110,7 @@ class _YOLO_BASE:
     model_shape: tuple  # 模型输入尺寸,例如 (1, 3, 640, 640)
     nms_threshold = 0.45  # nms阈值
     results = []
+    thread = None
 
     class _speed:
         ms_pre_process: float = 0  # 前处理耗时
@@ -127,6 +129,12 @@ class _YOLO_BASE:
         self.model_h = self.model_shape[2]
         self.model_w = self.model_shape[3]
 
+        # 创建任务队列和工作线程
+        self._task_queue = queue.Queue()
+        self._shutdown_event = threading.Event()
+        self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
+        self._worker_thread.start()
+
     def run(self, img, reliability_threshold=0.5, nms_threshold=0.5):
         """
         检测图片，阻塞直到检测完成，返回检测结果
@@ -137,18 +145,21 @@ class _YOLO_BASE:
 
         time_point = time.time() * 1000
 
-        data = self.pre_process(img)
-        self.speed.ms_pre_process = time.time() * 1000 - time_point
-        time_point = time.time() * 1000
-        self.npu.run(data)
+        try:
+            data = self.pre_process(img)
+            self.speed.ms_pre_process = time.time() * 1000 - time_point
+            time_point = time.time() * 1000
 
-        self.speed.ms_inference = time.time() * 1000 - time_point
-        time_point = time.time() * 1000
+            self.npu.run(data)
 
-        self.results = self.post_process(reliability_threshold)
-        self.speed.ms_post_process = time.time() * 1000 - time_point
-        time_point = time.time() * 1000
+            self.speed.ms_inference = time.time() * 1000 - time_point
+            time_point = time.time() * 1000
 
+            self.results = self.post_process(reliability_threshold)
+            self.speed.ms_post_process = time.time() * 1000 - time_point
+            time_point = time.time() * 1000
+        except:
+            pass
         self.has_result = True
         self.is_running = False
         return self.results
@@ -156,33 +167,51 @@ class _YOLO_BASE:
     def run_async(self, img, reliability_threshold=0.5, nms_threshold=0.5):
         """
         检测图片，立即返回，不阻塞
-        @path: 图片路径
+        @img: 图片路径或图像数据
+        @reliability_threshold: 置信度阈值
+        @nms_threshold: NMS阈值
         """
         if not self.is_running:
             self.nms_threshold = nms_threshold
             self.is_running = True
+            # 将任务放入队列
+            self._task_queue.put((img, reliability_threshold))
+        else:
+            print("模型正在运行中，请等待当前任务完成")
 
-            thread = threading.Thread(
-                target=self.thread_async_run,
-                args=(
-                    img,
-                    reliability_threshold,
-                ),
-            )
-            thread.start()
+    def _worker_loop(self):
+        """工作线程循环，处理异步任务"""
+        while not self._shutdown_event.is_set():
+            try:
+                # 等待任务，超时后检查是否需要退出
+                task_data = self._task_queue.get(timeout=0.1)
+                if task_data is None:  # 停止信号
+                    break
+
+                img, reliability_threshold = task_data
+                self.thread_async_run(img, reliability_threshold)
+                self._task_queue.task_done()
+            except queue.Empty:
+                continue  # 超时继续检查退出信号
+            except Exception:
+                if not self._task_queue.empty():
+                    self._task_queue.task_done()
 
     def thread_async_run(self, img, reliability_threshold):
         time_point = time.time() * 1000
 
-        try:
-            if not self.npu.is_async_running():
-                data = self.pre_process(img)
-                self.speed.ms_pre_process = time.time() * 1000 - time_point
-                time_point = time.time() * 1000
-                self.npu.run_async(data)
-
+        def wait_for_async_done():
             while self.npu.is_async_running():
                 time.sleep(0.001)
+
+        try:
+            data = self.pre_process(img)
+            self.speed.ms_pre_process = time.time() * 1000 - time_point
+            time_point = time.time() * 1000
+
+            wait_for_async_done()
+            self.npu.run_async(data)
+            wait_for_async_done()
 
             self.speed.ms_inference = time.time() * 1000 - time_point
             time_point = time.time() * 1000
@@ -290,7 +319,18 @@ class _YOLO_BASE:
                     areas[j] = 0
 
         return picked
-
+    def __del__(self):
+        """析构函数，清理线程"""
+        # 使用 getattr 安全地访问属性，如果属性不存在则返回 None
+        shutdown_event = getattr(self, '_shutdown_event', None)
+        worker_thread = getattr(self, '_worker_thread', None)
+        
+        if shutdown_event:
+            shutdown_event.set()
+        
+        # 等待工作线程结束
+        if worker_thread and worker_thread.is_alive():
+            worker_thread.join(timeout=1.0)  # 设置超时避免无限等待
 
 class YOLO11_CLS(_YOLO_BASE):
     results = YOLO_RESULT_CLS()  # 识别到的分类结果
@@ -395,6 +435,8 @@ class YOLO11_DET(_YOLO_BASE):
 
     def post_process(self, reliability_threshold):
         # self.npu.save_tensor(".")
+        if self.npu.output_buffer.count() < 4:
+            return []
         tensor_out = self.npu.output_buffer.get(0)
         tensor_8 = self.npu.output_buffer.get(1)
         tensor_16 = self.npu.output_buffer.get(2)
