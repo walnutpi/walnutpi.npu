@@ -147,10 +147,6 @@ static PyObject *py_awnn_run_async(PyObject *self, PyObject *args)
         }
 
         pthread_detach(thread_id);            // 添加分离属性，避免资源泄漏
-        while (flag_thread_awnn_running == 1) // 等子线程已经启动了才返回
-        {
-            usleep(100);
-        }
     }
 
     Py_RETURN_NONE;

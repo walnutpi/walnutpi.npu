@@ -174,22 +174,24 @@ class _YOLO_BASE:
     def thread_async_run(self, img, reliability_threshold):
         time_point = time.time() * 1000
 
-        if not self.npu.is_async_running():
-            data = self.pre_process(img)
-            self.speed.ms_pre_process = time.time() * 1000 - time_point
+        try:
+            if not self.npu.is_async_running():
+                data = self.pre_process(img)
+                self.speed.ms_pre_process = time.time() * 1000 - time_point
+                time_point = time.time() * 1000
+                self.npu.run_async(data)
+
+            while self.npu.is_async_running():
+                time.sleep(0.001)
+
+            self.speed.ms_inference = time.time() * 1000 - time_point
             time_point = time.time() * 1000
-            self.npu.run_async(data)
 
-        while self.npu.is_async_running():
-            time.sleep(0.001)
-
-        self.speed.ms_inference = time.time() * 1000 - time_point
-        time_point = time.time() * 1000
-
-        self.results = self.post_process(reliability_threshold)
-        self.speed.ms_post_process = time.time() * 1000 - time_point
-        time_point = time.time() * 1000
-
+            self.results = self.post_process(reliability_threshold)
+            self.speed.ms_post_process = time.time() * 1000 - time_point
+            time_point = time.time() * 1000
+        except:
+            pass
         self.has_result = True
         self.is_running = False
 
