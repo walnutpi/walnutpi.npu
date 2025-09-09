@@ -2,6 +2,7 @@ from setuptools import setup, Extension, find_packages
 import glob
 import datetime
 import numpy
+import os
 
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -13,6 +14,9 @@ classifiers = [
 
 with open("version", "r") as file:
     version_str = file.read().strip()
+
+# 获取当前目录
+current_dir = os.path.dirname(os.path.abspath(__file__))
 
 setup(
     name="walnutpi_npu",
@@ -34,8 +38,14 @@ setup(
             "_awnn_lib",
             sources=["py_awnn_lib.c"],
             libraries=["awnn_t527"],
-            library_dirs=["/usr/lib"],
-            include_dirs=[numpy.get_include()],
+            library_dirs=[current_dir, os.path.join(current_dir, "lib")],  # 在当前目录和lib目录查找动态库
+            include_dirs=[numpy.get_include(), os.path.join(current_dir, "header")],
+            runtime_library_dirs=[current_dir, os.path.join(current_dir, "lib")],  # 运行时也在这些目录查找
         )
     ],
+    # 将动态库文件包含在Python包中
+    package_data={
+        '': ['*.so', 'lib/*.so'],
+    },
+    include_package_data=True,
 )

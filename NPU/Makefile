@@ -28,13 +28,4 @@ $(TARGET): $(OBJS)
 clean:
 	rm -f $(OBJS) $(TARGET)
 
-install:
-	cp -f $(LIBS) /usr/lib/
-	cp -f $(TARGET) /usr/lib/
-	cp -f $(HEADERS) /usr/include/
-
-uninstall:
-	rm -f /usr/lib/$(TARGET)
-	rm -f /usr/include/$(HEADERS)
-
 .PHONY: all clean install uninstall
