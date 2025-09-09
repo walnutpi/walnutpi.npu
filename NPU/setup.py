@@ -1,8 +1,30 @@
 from setuptools import setup, Extension, find_packages
-import glob
-import datetime
 import numpy
 import os
+from setuptools.command.build_ext import build_ext
+from setuptools.command.build_py import build_py
+import subprocess
+
+
+# 运行make编译
+class MakefileBuild(build_ext):
+    def run(self):
+        try:
+            print("Running make command...")
+            subprocess.check_call(
+                ["make"], cwd=os.path.dirname(os.path.abspath(__file__))
+            )
+            print("Make completed successfully")
+        except subprocess.CalledProcessError as e:
+            print(f"Error running make: {e}")
+            print(f"Return code: {e.returncode}")
+            # 可以添加更多调试信息
+            raise
+        except FileNotFoundError:
+            print("Error: 'make' command not found. Please install build tools.")
+            raise
+        super().run()
+
 
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -33,6 +55,9 @@ setup(
     install_requires=[
         "numpy",
     ],
+    cmdclass={
+        "build_ext": MakefileBuild,
+    },
     ext_modules=[
         Extension(
             "_awnn_lib",
