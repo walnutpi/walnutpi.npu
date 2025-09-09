@@ -319,18 +319,20 @@ class _YOLO_BASE:
                     areas[j] = 0
 
         return picked
+
     def __del__(self):
         """析构函数，清理线程"""
         # 使用 getattr 安全地访问属性，如果属性不存在则返回 None
-        shutdown_event = getattr(self, '_shutdown_event', None)
-        worker_thread = getattr(self, '_worker_thread', None)
-        
+        shutdown_event = getattr(self, "_shutdown_event", None)
+        worker_thread = getattr(self, "_worker_thread", None)
+
         if shutdown_event:
             shutdown_event.set()
-        
+
         # 等待工作线程结束
         if worker_thread and worker_thread.is_alive():
             worker_thread.join(timeout=1.0)  # 设置超时避免无限等待
+
 
 class YOLO11_CLS(_YOLO_BASE):
     results = YOLO_RESULT_CLS()  # 识别到的分类结果

@@ -38,14 +38,20 @@ setup(
             "_awnn_lib",
             sources=["py_awnn_lib.c"],
             libraries=["awnn_t527"],
-            library_dirs=[current_dir, os.path.join(current_dir, "lib")],  # 在当前目录和lib目录查找动态库
+            library_dirs=[
+                current_dir,
+                os.path.join(current_dir, "lib"),
+            ],  # 在当前目录和lib目录查找动态库
             include_dirs=[numpy.get_include(), os.path.join(current_dir, "header")],
-            runtime_library_dirs=[current_dir, os.path.join(current_dir, "lib")],  # 运行时也在这些目录查找
+            runtime_library_dirs=[
+                current_dir,
+                os.path.join(current_dir, "lib"),
+            ],  # 运行时也在这些目录查找
         )
     ],
     # 将动态库文件包含在Python包中
     package_data={
-        '': ['*.so', 'lib/*.so'],
+        "": ["*.so", "lib/*.so"],
     },
     include_package_data=True,
 )

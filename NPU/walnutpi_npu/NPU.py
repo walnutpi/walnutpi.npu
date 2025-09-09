@@ -5,10 +5,11 @@ from ctypes import CDLL
 
 # 加载存放在项目路径下的动态库
 _current_dir = os.path.dirname(os.path.abspath(__file__))
-_lib_dir = os.path.normpath(os.path.join(_current_dir, '../lib'))
-CDLL(os.path.join(_lib_dir, 'libVIPuser.so'))
-CDLL(os.path.join(_lib_dir, 'libVIPlite.so'))
+_lib_dir = os.path.normpath(os.path.join(_current_dir, "../lib"))
+CDLL(os.path.join(_lib_dir, "libVIPuser.so"))
+CDLL(os.path.join(_lib_dir, "libVIPlite.so"))
 import _awnn_lib
+
 
 class _output_buffer:
     def count(self):
