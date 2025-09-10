@@ -54,6 +54,7 @@ setup(
     packages=find_packages(),
     install_requires=[
         "numpy",
+        "opencv-contrib-python"
     ],
     cmdclass={
         "build_ext": MakefileBuild,
