@@ -1,7 +1,3 @@
-include *.c
 include *.md
-include Makefile
-recursive-include header *.h
-recursive-include lib *.so
-recursive-include src *
-recursive-include walnutpi_npu *.py
+include *.py
+recursive-include walnutpi_npu/_awnn_lib *

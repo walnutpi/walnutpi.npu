@@ -4,13 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "walnutpi_npu"
-version = "0.0.4"
+version = "0.0.9"
 description = "A module to control npu on T-527"
 readme = "README.md"
 license = "MIT"
 authors = [
     { name = "sc-bin", email = "3335447573@qq.com" },
 ]
+# 添加依赖信息
+dependencies = ["numpy", "opencv-contrib-python"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",

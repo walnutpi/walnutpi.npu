@@ -1,5 +1,4 @@
 from setuptools import setup, Extension, find_packages
-import numpy
 import os
 from setuptools.command.build_ext import build_ext
 import subprocess
@@ -41,40 +40,42 @@ class MakefileBuild(build_ext):
         super().run()
 
 
-# 获取当前目录
-current_dir = os.path.dirname(os.path.abspath(__file__))
+def get_numpy_include():
+    try:
+        import numpy
 
-# 只在目标平台上定义扩展模块
+        return numpy.get_include()
+    except ImportError:
+        return ""
+
+
 ext_modules = []
 if _model is not None:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
     if "walnutpi-2b" in _model:
-        ext_modules = [
-            Extension(
-                "_awnn_lib",
-                sources=["walnutpi_npu/_awnn_lib/py_awnn_lib.c"],
-                libraries=["awnn_t527"],
-                library_dirs=[
-                    current_dir,
-                    os.path.join(current_dir, "walnutpi_npu/_awnn_lib/"),
-                    os.path.join(current_dir, "walnutpi_npu/_awnn_lib/lib"),
-                ],
-                include_dirs=[numpy.get_include(), os.path.join(current_dir, "header")],
-                runtime_library_dirs=[
-                    current_dir,
-                    os.path.join(current_dir, "lib"),
-                ],
-            )
-        ]
-
-# 只在目标平台上定义依赖
-install_requires = []
-if _model is not None:
-    install_requires = ["numpy", "opencv-contrib-python"]
+        numpy_include = get_numpy_include()
+        if numpy_include:
+            ext_modules = [
+                Extension(
+                    "_awnn_lib",
+                    sources=["walnutpi_npu/_awnn_lib/py_awnn_lib.c"],
+                    libraries=["awnn_t527"],
+                    library_dirs=[
+                        current_dir,
+                        os.path.join(current_dir, "walnutpi_npu/_awnn_lib/"),
+                        os.path.join(current_dir, "walnutpi_npu/_awnn_lib/lib"),
+                    ],
+                    include_dirs=[numpy_include, os.path.join(current_dir, "header")],
+                    runtime_library_dirs=[
+                        current_dir,
+                        os.path.join(current_dir, "lib"),
+                    ],
+                )
+            ]
 
 # 项目元数据现在从 pyproject.toml 读取，所以一些东西不在这里定义
 setup(
     packages=find_packages(),
-    install_requires=install_requires,
     cmdclass={
         "build_ext": MakefileBuild,
     },
