@@ -4,10 +4,18 @@ import numpy
 from ctypes import CDLL
 
 # 加载存放在项目路径下的动态库
-_current_dir = os.path.dirname(os.path.abspath(__file__))
-_lib_dir = os.path.normpath(os.path.join(_current_dir, "../lib"))
-CDLL(os.path.join(_lib_dir, "libVIPuser.so"))
-CDLL(os.path.join(_lib_dir, "libVIPlite.so"))
+
+__model_path = "/proc/device-tree/model"
+_model = None
+if os.path.exists(__model_path):
+    with open(__model_path, "r") as f:
+        _model = f.read().strip()
+
+    _current_dir = os.path.dirname(os.path.abspath(__file__))
+    if "walnutpi-2b" in _model:
+        _lib_dir = os.path.normpath(os.path.join(_current_dir, "_awnn_lib/t527/lib"))
+        CDLL(os.path.join(_lib_dir, "libVIPuser.so"))
+        CDLL(os.path.join(_lib_dir, "libVIPlite.so"))
 import _awnn_lib
 
 

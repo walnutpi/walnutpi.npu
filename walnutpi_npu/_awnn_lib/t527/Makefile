@@ -17,6 +17,7 @@ all: $(TARGET)
 
 $(TARGET): $(OBJS)
 	$(CXX) $(LDFLAGS) -o $@ $^ $(LIBS)
+	cp $(TARGET) ../
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c $< -o $@

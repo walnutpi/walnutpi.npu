@@ -57,6 +57,7 @@ __pycache__/
 *.pt
 *.onnx
 .*
+dist/
 
 !libVIPlite.so
 !libVIPuser.so

@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=45", "wheel", "numpy"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "walnutpi_npu"
+version = "0.0.4"
+description = "A module to control npu on T-527"
+readme = "README.md"
+license = "MIT"
+authors = [
+    { name = "sc-bin", email = "3335447573@qq.com" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Build Tools",
+    "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Homepage = "https://github.com/sc-bin/"
