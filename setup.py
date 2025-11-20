@@ -65,9 +65,10 @@ if _model is not None:
                         os.path.join(current_dir, "walnutpi_npu/_awnn_lib/"),
                         os.path.join(current_dir, "walnutpi_npu/_awnn_lib/lib"),
                     ],
-                    include_dirs=[numpy_include, os.path.join(current_dir, "header")],
+                    include_dirs=[numpy_include, os.path.join(current_dir, "walnutpi_npu/_awnn_lib/t527/header")],
                     runtime_library_dirs=[
                         current_dir,
+                        os.path.join(current_dir, "walnutpi_npu/_awnn_lib/"),
                         os.path.join(current_dir, "lib"),
                     ],
                 )
