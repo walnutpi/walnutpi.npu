@@ -5,12 +5,18 @@ import subprocess
 
 # 检查是否在目标平台上
 __model_path = "/proc/device-tree/model"
+__model_path_tmp = "/tmp/walnutpi-board_model" # 方便walnutpi-build构建镜像时判断
 _model = None
 if os.path.exists(__model_path):
     with open(__model_path, "r") as f:
         _model = f.read().strip()
     print(f"Model: {_model}")
-
+elif os.path.exists(__model_path_tmp):
+    with open(__model_path_tmp, "r") as f:
+        _model = f.read().strip()
+    print(f"Model: {_model}")
+else:
+    print("Model: Unknown")
 
 # 运行make编译的自定义命令
 class MakefileBuild(build_ext):
